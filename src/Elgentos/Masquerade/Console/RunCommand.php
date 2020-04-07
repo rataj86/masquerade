@@ -22,6 +22,9 @@ class RunCommand extends Command
 
     const VERSION = '0.1.9';
 
+    const DATA_COLUMN_TYPE = 'column';
+    const DATA_ATTRIBUTE_TYPE = 'attribute';
+
     protected $config;
 
     /**
@@ -109,11 +112,115 @@ class RunCommand extends Command
             }
             foreach ($tables as $tableName => $table) {
                 $table['name'] = $tableName;
-                $this->fakeData($table);
+
+                switch ($this->getDataType($table)) {
+                    case self::DATA_COLUMN_TYPE:
+                        $this->fakeData($table);
+                        break;
+                    case self::DATA_ATTRIBUTE_TYPE:
+                        $this->fakeDataForEavTable($table);
+                        break;
+                }
             }
         }
 
         $this->output->writeln('Done anonymizing');
+    }
+
+    private function fakeDataForEavTable(array $table) : void
+    {
+        if (false === $this->db->getSchemaBuilder()->hasTable($table['name'])) {
+            $this->output->writeln('Table ' . $table['name'] . ' does not exist.');
+            return;
+        }
+
+        $entityTypes = $this->db->table('eav_entity_type')->select('entity_type_id', 'entity_type_code')->get();
+        $entityTypesData = [];
+
+        foreach ($entityTypes as $entityType) {
+            $entityTypesData[$entityType->entity_type_code] = $entityType->entity_type_id;
+        }
+
+        foreach ($table['attributes'] as $attributeName => $attributeData) {
+            if (false === isset($attributeData['entityType'])) {
+                $this->output->writeln('entityType is not defined for attribute ' . $attributeName);
+                return;
+            }
+
+            if (false === isset($entityTypesData[$attributeData['entityType']])) {
+                $this->output->writeln('entityType ' . $attributeData['entityType'] .  ' does not exist in Magento. ');
+                return;
+            }
+
+            $attribute = $this->db->table('eav_attribute')
+                                  ->where('entity_type_id', '=', $entityTypesData[$attributeData['entityType']])
+                                  ->where('attribute_code', '=', $attributeName)
+                                  ->first();
+
+            if (true === empty($attribute->attribute_id)) {
+                $this->output->writeln('Attribute ' . $attributeName . ' does not exist.');
+                return;
+            }
+            $attributeEavTable = sprintf('%s_entity_%s', $attributeData['entityType'], $attribute->backend_type);
+
+            $this->output->writeln('');
+            $this->output->writeln('Updating attribute ' . $attributeName . ' in table ' . $attributeEavTable . '.');
+
+            $eavQueryBuilder = $this->db->table($attributeEavTable)
+                                ->where('entity_type_id', '=', intval($attribute->entity_type_id))
+                                ->where('attribute_id', '=', intval($attribute->attribute_id));
+            $totalRows = $eavQueryBuilder->count();
+
+            $progressBar = new ProgressBar($this->output, $totalRows);
+            $progressBar->setRedrawFrequency($this->calculateRedrawFrequency($totalRows));
+            $progressBar->start();
+
+            $primaryKey = 'value_id';
+            $eavQueryBuilder->orderBy($primaryKey)->chunk(100, function ($rows) use ($attributeEavTable, $attributeData, $progressBar, $primaryKey) {
+                foreach ($rows as $row) {
+                    $columnName = 'value';
+                    $formatter = array_get($attributeData, 'formatter.name');
+                    $formatterData = array_get($attributeData, 'formatter');
+                    $providerClassName = array_get($attributeData, 'provider', false);
+
+                    if (!$formatter) {
+                        $formatter = $formatterData;
+                        $options = [];
+                    } else {
+                        $options = array_values(array_slice($formatterData, 1));
+                    }
+
+                    if (!$formatter) {
+                        continue;
+                    }
+
+                    if ($formatter == 'fixed') {
+                        $updates[$columnName] = array_first($options);
+                        continue;
+                    }
+
+                    try {
+                        $fakerInstance = $this->getFakerInstance($attributeData, $providerClassName);
+                        if (array_get($attributeData, 'unique', false)) {
+                            $updates[$columnName] = $fakerInstance->unique()->{$formatter}(...$options);
+                        } elseif (array_get($attributeData, 'optional', false)) {
+                            $updates[$columnName] = $fakerInstance->optional()->{$formatter}(...$options);
+                        } else {
+                            $updates[$columnName] = $fakerInstance->{$formatter}(...$options);
+                        }
+                    } catch (\InvalidArgumentException $e) {
+                        // If InvalidArgumentException is thrown, formatter is not found, use null instead
+                        $updates[$columnName] = null;
+                    }
+                    $this->db->table($attributeEavTable)->where($primaryKey, $row->{$primaryKey})->update($updates);
+                    $progressBar->advance();
+                }
+            });
+
+            $progressBar->finish();
+
+            $this->output->writeln('');
+        }
     }
 
     /**
@@ -311,4 +418,14 @@ class RunCommand extends Command
 
         return (int) ceil($totalRows * $percentage);
     }
+
+    /**
+     * @param $table
+     * @return string
+     */
+    private function getDataType($table)
+    {
+        return $table['dataType'] ?? self::DATA_COLUMN_TYPE;
+    }
+
 }

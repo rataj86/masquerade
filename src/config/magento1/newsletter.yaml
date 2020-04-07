@@ -5,4 +5,3 @@ newsletter:
       subscriber_email:
         formatter: email
         unique: true
-        nullColumnBeforeRun: true

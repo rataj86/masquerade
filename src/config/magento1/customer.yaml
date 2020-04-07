@@ -5,6 +5,3 @@ customer:
         formatter: email
         unique: true
         nullColumnBeforeRun: true
-
-  customer_address_entity:
-    columns:

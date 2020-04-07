@@ -1,0 +1,54 @@
+eav:
+  customer_entity:
+    dataType: attribute
+    attributes:
+      firstname:
+        entityType : customer
+        formatter:
+          name: firstName
+      middlename:
+        entityType : customer
+        formatter:
+          name: fixed
+          value:
+      lastname:
+        entityType : customer
+        formatter: lastName
+      suffix:
+        entityType : customer
+        formatter:
+          name: fixed
+          value:
+      dob:
+        entityType : customer
+        formatter: dateTimeThisCentury
+
+  customer_address_entity:
+    dataType: attribute
+    attributes:
+      firstname:
+        entityType : customer_address
+        formatter: firstName
+      lastname:
+        entityType : customer_address
+        formatter: lastName
+      company:
+        entityType : customer_address
+        formatter: company
+        optional: true
+      street:
+        entityType : customer_address
+        formatter: streetAddress
+      city:
+        entityType : customer_address
+        formatter: city
+      postcode:
+        entityType : customer_address
+        formatter: postcode
+      telephone:
+        entityType : customer_address
+        formatter: phoneNumber
+      fax:
+        entityType : customer_address
+        formatter: phoneNumber
+        optional: true

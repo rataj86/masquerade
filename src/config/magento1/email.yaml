@@ -1,5 +1,6 @@
 email:
   core_email_queue_recipients:
+    pk: recipient_id
     columns:
       recipient_email:
         formatter: email
