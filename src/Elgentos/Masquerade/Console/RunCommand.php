@@ -22,9 +22,6 @@ class RunCommand extends Command
 
     const VERSION = '0.1.9';
 
-    const DATA_COLUMN_TYPE = 'column';
-    const DATA_ATTRIBUTE_TYPE = 'attribute';
-
     protected $config;
 
     /**
@@ -113,11 +110,11 @@ class RunCommand extends Command
             foreach ($tables as $tableName => $table) {
                 $table['name'] = $tableName;
 
-                switch ($this->getDataType($table)) {
-                    case self::DATA_COLUMN_TYPE:
+                switch ($this->configHelper->getDataType($table)) {
+                    case Config::DATA_COLUMN_TYPE:
                         $this->fakeData($table);
                         break;
-                    case self::DATA_ATTRIBUTE_TYPE:
+                    case Config::DATA_ATTRIBUTE_TYPE:
                         $this->fakeDataForEavTable($table);
                         break;
                 }
@@ -417,15 +414,6 @@ class RunCommand extends Command
         }
 
         return (int) ceil($totalRows * $percentage);
-    }
-
-    /**
-     * @param $table
-     * @return string
-     */
-    private function getDataType($table)
-    {
-        return $table['dataType'] ?? self::DATA_COLUMN_TYPE;
     }
 
 }

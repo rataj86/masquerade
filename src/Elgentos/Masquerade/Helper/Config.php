@@ -24,6 +24,9 @@ class Config
      */
     const CONFIG_YAML = 'config.yaml';
 
+    const DATA_COLUMN_TYPE = 'column';
+    const DATA_ATTRIBUTE_TYPE = 'attribute';
+
     public function readConfigFile()
     {
         $dirs = $this->getExistingConfigDirs();
@@ -72,6 +75,15 @@ class Config
         }
 
         return $config;
+    }
+
+    /**
+     * @param $table
+     * @return string
+     */
+    public function getDataType($table)
+    {
+        return $table['dataType'] ?? self::DATA_COLUMN_TYPE;
     }
 
     /**
